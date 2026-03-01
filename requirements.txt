@@ -1,0 +1,12 @@
+pip install torch torchvision torchaudio
+pip install numpy
+pip install mlflow
+pip install tqdm
+pip install scikit-learn
+pip install matplotlib
+pip install pandas
+pip install python-dotenv
+pip install requests
+pip install dvc
+pip install dagshub
+pipip install pytest

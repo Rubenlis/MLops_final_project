@@ -1,5 +1,6 @@
 import torch
 from model import QAModel 
+from qa.model import QAModel
 
 # Test to check if model return the adequate dimensions
 def test_model_output_shapes():
