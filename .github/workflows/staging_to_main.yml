@@ -1,0 +1,28 @@
+name: Staging to Main (Production)
+on:
+  push:
+    branches: [main]
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Promote to Production
+        run: |
+          pip install mlflow dagshub
+          python -c "
+          import mlflow
+          client = mlflow.tracking.MlflowClient()
+          model_name = 'qa_model'
+          latest_staging = client.get_latest_versions(model_name, stages=['Staging'])[0]
+          client.transition_model_version_stage(name=model_name, version=latest_staging.version, stage='Production')
+          "
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
