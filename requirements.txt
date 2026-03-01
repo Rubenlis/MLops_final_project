@@ -1,0 +1,6 @@
+pytest
+mlflow
+dagshub
+dvc[gdrive]
+torch
+transformers
