@@ -1,0 +1,120 @@
+name: Dev to Staging (CI/CD)
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  train-evaluate-promote:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest mlflow dagshub "dvc[gdrive]"
+
+      # --- DVC (Google Drive) ---
+      - name: Write GDrive service account key
+        run: |
+          mkdir -p .secrets
+          echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}' > .secrets/gdrive-sa.json
+
+      - name: Configure DVC for GDrive (service account)
+        run: |
+          dvc remote modify gdrive gdrive_use_service_account true --local
+          dvc remote modify gdrive gdrive_service_account_json_file_path .secrets/gdrive-sa.json --local
+
+      - name: Fetch real data with DVC
+        run: |
+          dvc pull
+
+      # --- Tests ---
+      - name: Run unit tests
+        run: |
+          pytest -q
+
+      # --- Training ---
+      - name: Train on a larger subset
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          python training/train.py \
+            --train_json data/train-v2.0.json \
+            --val_json data/dev-v2.0.json \
+            --epochs 3 \
+            --batch_size 16 \
+            --subset_train 20000 \
+            --subset_val 4000
+
+      # --- Quality gate + Promotion to Staging ---
+      - name: Quality Gate (F1 Threshold) & MLflow Staging Promotion
+        env:
+          F1_THRESHOLD: "0.60"
+          MODEL_NAME: "qa_model"
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          python - << 'PY'
+          import json, os, sys
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          client = MlflowClient()
+
+          threshold = float(os.environ["F1_THRESHOLD"])
+          model_name = os.environ["MODEL_NAME"]
+
+          metrics_path = "artifacts/metrics.json"
+          if not os.path.exists(metrics_path):
+              print("Metrics file not found:", metrics_path)
+              sys.exit(1)
+
+          with open(metrics_path, "r", encoding="utf-8") as f:
+              metrics = json.load(f)
+
+          best_f1 = float(metrics.get("best_val_f1", 0.0))
+          print(f"Obtained F1 Score: {best_f1:.4f}")
+
+          if best_f1 < threshold:
+              print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
+              sys.exit(1)
+
+          print("Quality Gate passed! Promoting model to Staging...")
+
+          # Prefer promoting the latest NONE stage version
+          versions = client.get_latest_versions(model_name, stages=["None"])
+          if not versions:
+              # fallback: promote latest version if 'None' isn't returned by backend
+              all_versions = client.search_model_versions(f"name='{model_name}'")
+              if not all_versions:
+                  print("No model versions found.")
+                  sys.exit(1)
+              latest = max(all_versions, key=lambda v: int(v.version))
+              latest_version = latest.version
+          else:
+              latest_version = versions[0].version
+
+          client.transition_model_version_stage(
+              name=model_name,
+              version=latest_version,
+              stage="Staging",
+              archive_existing_versions=True
+          )
+
+          print(f"Model promoted to Staging (Version {latest_version})!")
+          PY

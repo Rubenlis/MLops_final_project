@@ -7,6 +7,7 @@ pip install matplotlib
 pip install pandas
 pip install python-dotenv
 pip install requests
-pip install dvc
+pip install "dvc[gdrive]"
 pip install dagshub
+pip install -e .
 pipip install pytest

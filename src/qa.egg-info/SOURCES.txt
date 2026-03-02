@@ -1,3 +1,4 @@
+README.md
 pyproject.toml
 src/qa/data_utils.py
 src/qa/model.py
@@ -6,3 +7,4 @@ src/qa.egg-info/SOURCES.txt
 src/qa.egg-info/dependency_links.txt
 src/qa.egg-info/top_level.txt
 tests/test_model.py
+tests/test_preprocessor.py
