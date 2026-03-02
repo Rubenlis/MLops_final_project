@@ -70,6 +70,7 @@ def squad2_to_flat(squad_json: Dict[str, Any], keep_impossible: bool = False) ->
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--no_mlflow", action="store_true", help="Disable MLflow logging (useful for CI).")
     parser.add_argument("--train_json", type=str, required=True, help="Path to train-v2.0.json (original SQuAD2 format)")
     parser.add_argument("--val_json", type=str, default="", help="Path to dev-v2.0.json (original SQuAD2 format)")
 
