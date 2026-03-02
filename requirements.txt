@@ -1,13 +1,14 @@
-pip install torch torchvision torchaudio
-pip install numpy
-pip install mlflow
-pip install tqdm
-pip install scikit-learn
-pip install matplotlib
-pip install pandas
-pip install python-dotenv
-pip install requests
-pip install "dvc[gdrive]"
-pip install dagshub
-pip install -e .
-pipip install pytest
+torch
+torchvision
+torchaudio
+numpy
+mlflow
+tqdm
+scikit-learn
+matplotlib
+pandas
+python-dotenv
+requests
+dvc[gdrive]
+dagshub
+pytest
