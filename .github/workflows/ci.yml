@@ -33,7 +33,7 @@ jobs:
         run: |
           # Check training loop with mini-files
           
-          python src/qa/train.py \
+          python training/train.py \
             --train_json tests/fixtures/mini_train-v2.0.json \
             --val_json tests/fixtures/mini_dev-v2.0.json \
             --epochs 1 \
