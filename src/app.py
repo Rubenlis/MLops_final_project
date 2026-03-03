@@ -7,6 +7,9 @@ from pydantic import BaseModel
 from mlflow.tracking import MlflowClient
 from src.qa.data_utils import SquadPreprocessor
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
 # --- 1. Define data schemas (Input / Output) ---
 class QAInput(BaseModel):
     question: str
@@ -118,7 +121,11 @@ def predict(data: QAInput):
         
     return QAResponse(answer=answer)
 
-# --- 5. Health check route ---
+
+# Mount the static directory to serve the HTML file
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
+
+# --- 5. Main route (Serves the Web Frontend) ---
 @app.get("/")
 def read_root():
-    return {"status": "API online", "model_loaded": qa_model is not None}
+    return FileResponse("src/static/index.html")
