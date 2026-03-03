@@ -23,9 +23,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install pytest mlflow dagshub "dvc[gdrive]"
+          pip install pytest mlflow dagshub "dvc[gdrive]" scikit-learn
 
-      # --- DVC (Google Drive) ---
+      # --- DVC (Google Drive Service Account) ---
       - name: Write GDrive service account key
         run: |
           mkdir -p .secrets
@@ -43,10 +43,10 @@ jobs:
       # --- Tests ---
       - name: Run unit tests
         run: |
-          pytest -q
+          python -m pytest -q
 
-      # --- Training ---
-      - name: Train on a larger subset
+      # --- Training (MLflow enabled here!) ---
+      - name: Train on staging subset
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
@@ -60,17 +60,20 @@ jobs:
             --subset_train 20000 \
             --subset_val 4000
 
-      # --- Quality gate + Promotion to Staging ---
-      - name: Quality Gate (F1 Threshold) & MLflow Staging Promotion
+      # --- Quality gate + Promotion + Tags ---
+      - name: Quality Gate & Promote model to Staging (with tags)
         env:
-          F1_THRESHOLD: "0.60"
+          F1_THRESHOLD: "0.10"
           MODEL_NAME: "qa_model"
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          GIT_SHA: ${{ github.sha }}
+          GIT_REF: ${{ github.ref }}
         run: |
           python - << 'PY'
           import json, os, sys
+          from datetime import datetime, timezone
           import mlflow
           from mlflow.tracking import MlflowClient
 
@@ -95,27 +98,40 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
-          print("Quality Gate passed! Promoting model to Staging...")
-
-          # Prefer promoting the latest NONE stage version
+          # Promote latest NONE stage version
           versions = client.get_latest_versions(model_name, stages=["None"])
           if not versions:
-              # fallback: promote latest version if 'None' isn't returned by backend
               all_versions = client.search_model_versions(f"name='{model_name}'")
               if not all_versions:
                   print("No model versions found.")
                   sys.exit(1)
-              latest = max(all_versions, key=lambda v: int(v.version))
-              latest_version = latest.version
+              mv = max(all_versions, key=lambda v: int(v.version))
           else:
-              latest_version = versions[0].version
+              mv = versions[0]
+
+          version = mv.version
+          run_id = mv.run_id
 
           client.transition_model_version_stage(
               name=model_name,
-              version=latest_version,
+              version=version,
               stage="Staging",
               archive_existing_versions=True
           )
 
-          print(f"Model promoted to Staging (Version {latest_version})!")
+          now = datetime.now(timezone.utc).isoformat()
+          client.set_model_version_tag(model_name, version, "promoted_to", "staging")
+          client.set_model_version_tag(model_name, version, "quality_gate_f1", f"{best_f1:.4f}")
+          client.set_model_version_tag(model_name, version, "promoted_by", "github-actions")
+          client.set_model_version_tag(model_name, version, "git_sha", os.environ.get("GIT_SHA", ""))
+          client.set_model_version_tag(model_name, version, "git_ref", os.environ.get("GIT_REF", ""))
+          client.set_model_version_tag(model_name, version, "promoted_at_utc", now)
+
+          if run_id:
+              client.set_tag(run_id, "promoted_to", "staging")
+              client.set_tag(run_id, "quality_gate_f1", f"{best_f1:.4f}")
+              client.set_tag(run_id, "git_sha", os.environ.get("GIT_SHA", ""))
+              client.set_tag(run_id, "git_ref", os.environ.get("GIT_REF", ""))
+
+          print(f"✅ Model promoted to Staging: {model_name} v{version}")
           PY

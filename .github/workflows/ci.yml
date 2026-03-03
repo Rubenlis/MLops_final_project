@@ -39,7 +39,8 @@ jobs:
             --epochs 1 \
             --batch_size 1 \
             --subset_train 0 \
-            --subset_val 0
+            --subset_val 0 \
+            --no_mlflow
 
       - name: Build Docker Image (No Push)
         run: |
