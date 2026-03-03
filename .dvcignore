@@ -1,0 +1,10 @@
+*.egg-info/
+build/
+dist/
+
+data/
+artifacts/
+__pycache__/
+*.pyc
+.env
+mlruns/

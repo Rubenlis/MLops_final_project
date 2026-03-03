@@ -1,0 +1,102 @@
+name: Staging to Main (Production)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  promote-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest mlflow dagshub
+
+      - name: Run tests (safety)
+        run: |
+          python -m pytest -q
+
+      - name: Promote latest Staging model to Production (with tags)
+        env:
+          MODEL_NAME: "qa_model"
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+          GIT_SHA: ${{ github.sha }}
+          GIT_REF: ${{ github.ref }}
+        run: |
+          python - << 'PY'
+          import os, sys
+          from datetime import datetime, timezone
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          client = MlflowClient()
+          model_name = os.environ["MODEL_NAME"]
+
+          versions = client.get_latest_versions(model_name, stages=["Staging"])
+          if not versions:
+              print("No model version found in Staging.")
+              sys.exit(1)
+
+          mv = versions[0]
+          version = mv.version
+          run_id = mv.run_id
+
+          # Promote to Production
+          client.transition_model_version_stage(
+              name=model_name,
+              version=version,
+              stage="Production",
+              archive_existing_versions=True
+          )
+
+          # Tag model version + run
+          now = datetime.now(timezone.utc).isoformat()
+          client.set_model_version_tag(model_name, version, "promoted_to", "production")
+          client.set_model_version_tag(model_name, version, "promoted_by", "github-actions")
+          client.set_model_version_tag(model_name, version, "git_sha", os.environ.get("GIT_SHA", ""))
+          client.set_model_version_tag(model_name, version, "git_ref", os.environ.get("GIT_REF", ""))
+          client.set_model_version_tag(model_name, version, "promoted_at_utc", now)
+
+          if run_id:
+              client.set_tag(run_id, "promoted_to", "production")
+              client.set_tag(run_id, "git_sha", os.environ.get("GIT_SHA", ""))
+              client.set_tag(run_id, "git_ref", os.environ.get("GIT_REF", ""))
+
+          print(f"✅ Model promoted to Production: {model_name} v{version}")
+          PY
+
+      # ---- Docker build & push to GitHub Container Registry ----
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
