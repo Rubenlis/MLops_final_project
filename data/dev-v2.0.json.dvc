@@ -1,0 +1,5 @@
+outs:
+- md5: 246adae8b7002f8679c027697b0b7cf8
+  size: 4370528
+  hash: md5
+  path: dev-v2.0.json

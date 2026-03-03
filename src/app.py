@@ -20,7 +20,7 @@ class QAResponse(BaseModel):
 
 
 app = FastAPI(
-    title="MLOps QA API",
+    title="MLOps QA API ",
     description="API to serve the Question/Answering model in Production",
     version="1.0.0",
 )

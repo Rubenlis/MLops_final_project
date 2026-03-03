@@ -39,8 +39,12 @@ jobs:
             --epochs 1 \
             --batch_size 1 \
             --subset_train 0 \
+<<<<<<< HEAD
             --subset_val 0 \
             --no_mlflow
+=======
+            --subset_val 0
+>>>>>>> feature/training_and_evaluation
 
       - name: Build Docker Image (No Push)
         run: |

@@ -6,11 +6,16 @@ on:
       - main
 
 jobs:
+<<<<<<< HEAD
   promote-and-build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+=======
+  promote-and-release:
+    runs-on: ubuntu-latest
+>>>>>>> feature/training_and_evaluation
 
     steps:
       - name: Checkout code
@@ -28,27 +33,45 @@ jobs:
           pip install -e .
           pip install pytest mlflow dagshub
 
+<<<<<<< HEAD
       - name: Run tests (safety)
         run: |
           python -m pytest -q
 
       - name: Promote latest Staging model to Production (with tags)
+=======
+      - name: Re-run unit tests (safety)
+        run: |
+          pytest -q
+
+      - name: Promote latest Staging model to Production
+>>>>>>> feature/training_and_evaluation
         env:
           MODEL_NAME: "qa_model"
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+<<<<<<< HEAD
           GIT_SHA: ${{ github.sha }}
           GIT_REF: ${{ github.ref }}
         run: |
           python - << 'PY'
           import os, sys
           from datetime import datetime, timezone
+=======
+        run: |
+          python - << 'PY'
+          import os, sys
+>>>>>>> feature/training_and_evaluation
           import mlflow
           from mlflow.tracking import MlflowClient
 
           mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
           client = MlflowClient()
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/training_and_evaluation
           model_name = os.environ["MODEL_NAME"]
 
           versions = client.get_latest_versions(model_name, stages=["Staging"])
@@ -56,11 +79,15 @@ jobs:
               print("No model version found in Staging.")
               sys.exit(1)
 
+<<<<<<< HEAD
           mv = versions[0]
           version = mv.version
           run_id = mv.run_id
 
           # Promote to Production
+=======
+          version = versions[0].version
+>>>>>>> feature/training_and_evaluation
           client.transition_model_version_stage(
               name=model_name,
               version=version,
@@ -68,6 +95,7 @@ jobs:
               archive_existing_versions=True
           )
 
+<<<<<<< HEAD
           # Tag model version + run
           now = datetime.now(timezone.utc).isoformat()
           client.set_model_version_tag(model_name, version, "promoted_to", "production")
@@ -100,3 +128,9 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ github.sha }}
+=======
+          print(f"Model promoted to Production (Version {version})!")
+          PY
+
+      # O Add Docker build/push/deploy steps here
+>>>>>>> feature/training_and_evaluation

@@ -1,7 +1,12 @@
-data/
+<<<<<<< HEAD
+=======
+data/*
+!data/*.dvc
+>>>>>>> feature/training_and_evaluation
 artifacts/
 __pycache__/
 *.pyc
 .env
 mlruns/
 .idea/
+secrets/

@@ -1,6 +1,7 @@
 name: Dev to Staging (CI/CD)
 
 on:
+<<<<<<< HEAD
   pull_request:
     branches:
       - staging
@@ -9,6 +10,14 @@ on:
 jobs:
   train-evaluate-promote:
     if: github.event.pull_request.merged == true
+=======
+  push:
+    branches:
+      - staging
+
+jobs:
+  train-evaluate-promote:
+>>>>>>> feature/training_and_evaluation
     runs-on: ubuntu-latest
 
     steps:
@@ -25,9 +34,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
+<<<<<<< HEAD
           pip install pytest mlflow dagshub "dvc[gdrive]" scikit-learn
 
       # --- DVC (Google Drive Service Account) ---
+=======
+          pip install pytest mlflow dagshub "dvc[gdrive]"
+
+      # --- DVC (Google Drive) ---
+>>>>>>> feature/training_and_evaluation
       - name: Write GDrive service account key
         run: |
           mkdir -p .secrets
@@ -45,10 +60,17 @@ jobs:
       # --- Tests ---
       - name: Run unit tests
         run: |
+<<<<<<< HEAD
           python -m pytest -q
 
       # --- Training (MLflow enabled here!) ---
       - name: Train on staging subset
+=======
+          pytest -q
+
+      # --- Training ---
+      - name: Train on a larger subset
+>>>>>>> feature/training_and_evaluation
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
@@ -62,20 +84,33 @@ jobs:
             --subset_train 20000 \
             --subset_val 4000
 
+<<<<<<< HEAD
       # --- Quality gate + Promotion + Tags ---
       - name: Quality Gate & Promote model to Staging (with tags)
         env:
           F1_THRESHOLD: "0.10"
+=======
+      # --- Quality gate + Promotion to Staging ---
+      - name: Quality Gate (F1 Threshold) & MLflow Staging Promotion
+        env:
+          F1_THRESHOLD: "0.60"
+>>>>>>> feature/training_and_evaluation
           MODEL_NAME: "qa_model"
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+<<<<<<< HEAD
           GIT_SHA: ${{ github.sha }}
           GIT_REF: ${{ github.ref }}
         run: |
           python - << 'PY'
           import json, os, sys
           from datetime import datetime, timezone
+=======
+        run: |
+          python - << 'PY'
+          import json, os, sys
+>>>>>>> feature/training_and_evaluation
           import mlflow
           from mlflow.tracking import MlflowClient
 
@@ -100,13 +135,23 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
+<<<<<<< HEAD
           # Promote latest NONE stage version
           versions = client.get_latest_versions(model_name, stages=["None"])
           if not versions:
+=======
+          print("Quality Gate passed! Promoting model to Staging...")
+
+          # Prefer promoting the latest NONE stage version
+          versions = client.get_latest_versions(model_name, stages=["None"])
+          if not versions:
+              # fallback: promote latest version if 'None' isn't returned by backend
+>>>>>>> feature/training_and_evaluation
               all_versions = client.search_model_versions(f"name='{model_name}'")
               if not all_versions:
                   print("No model versions found.")
                   sys.exit(1)
+<<<<<<< HEAD
               mv = max(all_versions, key=lambda v: int(v.version))
           else:
               mv = versions[0]
@@ -117,10 +162,21 @@ jobs:
           client.transition_model_version_stage(
               name=model_name,
               version=version,
+=======
+              latest = max(all_versions, key=lambda v: int(v.version))
+              latest_version = latest.version
+          else:
+              latest_version = versions[0].version
+
+          client.transition_model_version_stage(
+              name=model_name,
+              version=latest_version,
+>>>>>>> feature/training_and_evaluation
               stage="Staging",
               archive_existing_versions=True
           )
 
+<<<<<<< HEAD
           now = datetime.now(timezone.utc).isoformat()
           client.set_model_version_tag(model_name, version, "promoted_to", "staging")
           client.set_model_version_tag(model_name, version, "quality_gate_f1", f"{best_f1:.4f}")
@@ -137,3 +193,7 @@ jobs:
 
           print(f"✅ Model promoted to Staging: {model_name} v{version}")
           PY
+=======
+          print(f"Model promoted to Staging (Version {latest_version})!")
+          PY
+>>>>>>> feature/training_and_evaluation
