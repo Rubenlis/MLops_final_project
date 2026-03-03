@@ -1,0 +1,46 @@
+name: CI Pipeline (PR to dev)
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installing depedencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest
+
+      - name: Launching tests (Unit & Integration)
+        run: |
+          pytest tests/
+
+      - name: Smoke Test (Mini-train on Fixtures)
+        run: |
+          # Check training loop with mini-files
+          
+          python training/train.py \
+            --train_json tests/fixtures/mini_train-v2.0.json \
+            --val_json tests/fixtures/mini_dev-v2.0.json \
+            --epochs 1 \
+            --batch_size 1 \
+            --subset_train 0 \
+            --subset_val 0
+
+      - name: Build Docker Image (No Push)
+        run: |
+          docker build -t qa-backend:test .

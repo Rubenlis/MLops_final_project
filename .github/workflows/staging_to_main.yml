@@ -1,0 +1,65 @@
+name: Staging to Main (Production)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  promote-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest mlflow dagshub
+
+      - name: Re-run unit tests (safety)
+        run: |
+          pytest -q
+
+      - name: Promote latest Staging model to Production
+        env:
+          MODEL_NAME: "qa_model"
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
+        run: |
+          python - << 'PY'
+          import os, sys
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+          client = MlflowClient()
+
+          model_name = os.environ["MODEL_NAME"]
+
+          versions = client.get_latest_versions(model_name, stages=["Staging"])
+          if not versions:
+              print("No model version found in Staging.")
+              sys.exit(1)
+
+          version = versions[0].version
+          client.transition_model_version_stage(
+              name=model_name,
+              version=version,
+              stage="Production",
+              archive_existing_versions=True
+          )
+
+          print(f"Model promoted to Production (Version {version})!")
+          PY
+
+      # O Add Docker build/push/deploy steps here
