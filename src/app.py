@@ -5,7 +5,7 @@ import mlflow.pytorch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from mlflow.tracking import MlflowClient
-from src.qa.data_utils import SquadPreprocessor
+from qa.data_utils import SquadPreprocessor
 
 # --- 1. Define data schemas (Input / Output) ---
 class QAInput(BaseModel):
