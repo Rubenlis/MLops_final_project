@@ -1,0 +1,17 @@
+torch
+torchvision
+torchaudio
+numpy
+mlflow
+tqdm
+scikit-learn
+matplotlib
+pandas
+python-dotenv
+requests
+dvc[gdrive]
+dagshub
+pytest
+fastapi
+uvicorn
+pydantic
