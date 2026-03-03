@@ -2,11 +2,13 @@ name: Dev to Staging (CI/CD)
 
 on:
   pull_request:
-    branches: [staging]
+    branches:
+      - staging
     types: [closed]
 
 jobs:
   train-evaluate-promote:
+    # only run when the PR was merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
@@ -47,7 +49,9 @@ jobs:
 
       - name: Verify data files exist
         run: |
+          echo "Listing repo root:"
           ls -lah
+          echo "Listing data/:"
           ls -lah data || true
           test -f data/train-v2.0.json
           test -f data/dev-v2.0.json
@@ -111,7 +115,7 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
-          # Prefer latest 'None' stage version; fallback to latest version
+          # Promote latest NONE stage version (newly registered)
           versions = client.get_latest_versions(model_name, stages=["None"])
           if versions:
               mv = versions[0]
