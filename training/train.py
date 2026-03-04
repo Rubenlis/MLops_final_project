@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # training/train.py
 
 import argparse
@@ -7,43 +6,23 @@ import os
 import random
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List
-=======
-import argparse
-import json
-import random
-from pathlib import Path
-from typing import List, Dict, Any
-from sklearn.model_selection import train_test_split
-import os
->>>>>>> feature/training_and_evaluation
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
-<<<<<<< HEAD
 from sklearn.model_selection import train_test_split
-=======
->>>>>>> feature/training_and_evaluation
 from torch.utils.data import DataLoader
 
 import mlflow
 import mlflow.pytorch
 
-<<<<<<< HEAD
-=======
-# If your project structure differs, adjust these imports
->>>>>>> feature/training_and_evaluation
 from qa.data_utils import SquadPreprocessor, SquadDataset
 from qa.model import QAModel
 from eval import evaluate
 
 
-<<<<<<< HEAD
 def set_seed(seed: int) -> None:
-=======
-def set_seed(seed: int):
->>>>>>> feature/training_and_evaluation
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -59,13 +38,10 @@ def squad2_to_flat(squad_json: Dict[str, Any], keep_impossible: bool = False) ->
     """
     Convert original SQuAD v2.0 format to a flat list compatible with SquadPreprocessor.process_raw_data():
       {context, question, answer_text, answer_start}
-    We typically drop impossible questions for MVP extractive QA.
+
+    For MVP extractive QA we usually drop impossible questions.
     """
-<<<<<<< HEAD
     out: List[Dict[str, Any]] = []
-=======
-    out = []
->>>>>>> feature/training_and_evaluation
     for article in squad_json.get("data", []):
         for para in article.get("paragraphs", []):
             context = para.get("context", "")
@@ -82,11 +58,10 @@ def squad2_to_flat(squad_json: Dict[str, Any], keep_impossible: bool = False) ->
                     answer_text = a0.get("text", "")
                     answer_start = int(a0.get("answer_start", -1))
                 else:
-                    # Will be dropped by preprocessor anyway
+                    # dropped by preprocessor anyway (no span)
                     answer_text = ""
                     answer_start = -1
 
-<<<<<<< HEAD
                 out.append(
                     {
                         "context": context,
@@ -104,24 +79,8 @@ def main() -> None:
     # CI helper
     parser.add_argument("--no_mlflow", action="store_true", help="Disable MLflow logging (useful for CI).")
 
-    parser.add_argument("--train_json", type=str, required=True, help="Path to train-v2.0.json (original SQuAD2 format)")
-    parser.add_argument("--val_json", type=str, default="", help="Path to dev-v2.0.json (original SQuAD2 format). If missing, split from train.")
-=======
-                out.append({
-                    "context": context,
-                    "question": question,
-                    "answer_text": answer_text,
-                    "answer_start": answer_start,
-                })
-    return out
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--no_mlflow", action="store_true", help="Disable MLflow logging (useful for CI).")
-    parser.add_argument("--train_json", type=str, required=True, help="Path to train-v2.0.json (original SQuAD2 format)")
-    parser.add_argument("--val_json", type=str, default="", help="Path to dev-v2.0.json (original SQuAD2 format)")
->>>>>>> feature/training_and_evaluation
+    parser.add_argument("--train_json", type=str, required=True, help="Path to train json (original SQuAD2 format)")
+    parser.add_argument("--val_json", type=str, default="", help="Path to dev json (original SQuAD2 format). If missing, split from train.")
 
     parser.add_argument("--max_len", type=int, default=256)
     parser.add_argument("--embedding_dim", type=int, default=128)
@@ -141,32 +100,17 @@ def main():
     parser.add_argument("--subset_val", type=int, default=4000, help="Use first N flat examples (speed). 0 = all.")
 
     args = parser.parse_args()
-<<<<<<< HEAD
-    use_mlflow = not args.no_mlflow
-=======
->>>>>>> feature/training_and_evaluation
+    use_mlflow: bool = not args.no_mlflow
 
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # MLflow setup (tracking URI can be set via env: MLFLOW_TRACKING_URI)
-<<<<<<< HEAD
-    if use_mlflow:
-        mlflow.set_experiment(args.mlflow_experiment)
-=======
-    mlflow.set_experiment(args.mlflow_experiment)
->>>>>>> feature/training_and_evaluation
 
     # -------- Load SQuAD2 original + flatten --------
     train_squad = load_squad2_original(args.train_json)
     train_flat = squad2_to_flat(train_squad, keep_impossible=False)
 
     # If val_json exists, use it. Otherwise split from train.
-<<<<<<< HEAD
     if args.val_json and os.path.exists(args.val_json):
-=======
-    if os.path.exists(args.val_json):
->>>>>>> feature/training_and_evaluation
         val_squad = load_squad2_original(args.val_json)
         val_flat = squad2_to_flat(val_squad, keep_impossible=False)
     else:
@@ -174,7 +118,6 @@ def main():
             train_flat,
             test_size=0.1,
             random_state=args.seed,
-<<<<<<< HEAD
             shuffle=True,
         )
 
@@ -182,15 +125,6 @@ def main():
         train_flat = train_flat[: args.subset_train]
     if args.subset_val and args.subset_val > 0:
         val_flat = val_flat[: args.subset_val]
-=======
-            shuffle=True
-        )
-
-    if args.subset_train and args.subset_train > 0:
-        train_flat = train_flat[:args.subset_train]
-    if args.subset_val and args.subset_val > 0:
-        val_flat = val_flat[:args.subset_val]
->>>>>>> feature/training_and_evaluation
 
     # -------- Preprocess (tokenize + span align) --------
     pre = SquadPreprocessor()
@@ -211,11 +145,7 @@ def main():
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
         pad_idx=word2idx["<PAD>"],
-<<<<<<< HEAD
         dropout_rate=args.dropout,
-=======
-        dropout_rate=args.dropout
->>>>>>> feature/training_and_evaluation
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -224,15 +154,18 @@ def main():
     artifacts_dir = Path("artifacts")
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-<<<<<<< HEAD
-    # Always write vocab locally (CI + reproducibility)
+    # Save vocab locally (CI + reproducibility)
     vocab_path = artifacts_dir / "vocab.json"
     with open(vocab_path, "w", encoding="utf-8") as f:
         json.dump(word2idx, f, ensure_ascii=False, indent=2)
 
     best_f1 = -1.0
     best_weights_path = artifacts_dir / "best_model_state_dict.pt"
-    run_id: str | None = None
+    run_id: Optional[str] = None
+
+    # MLflow setup (only if enabled)
+    if use_mlflow:
+        mlflow.set_experiment(args.mlflow_experiment)
 
     with (mlflow.start_run() if use_mlflow else nullcontext()) as run:
         if use_mlflow:
@@ -257,38 +190,7 @@ def main():
                     "val_clean_size": len(val_clean),
                 }
             )
-
             mlflow.log_artifact(str(vocab_path))
-=======
-    best_f1 = -1.0
-    best_weights_path = artifacts_dir / "best_model_state_dict.pt"
-
-    with mlflow.start_run() as run:
-        # log params
-        mlflow.log_params({
-            "max_len": args.max_len,
-            "embedding_dim": args.embedding_dim,
-            "hidden_dim": args.hidden_dim,
-            "dropout": args.dropout,
-            "batch_size": args.batch_size,
-            "lr": args.lr,
-            "epochs": args.epochs,
-            "seed": args.seed,
-            "max_answer_len": args.max_answer_len,
-            "device": str(device),
-            "vocab_size": len(word2idx),
-            "train_flat_size": len(train_flat),
-            "val_flat_size": len(val_flat),
-            "train_clean_size": len(train_clean),
-            "val_clean_size": len(val_clean),
-        })
-
-        # save vocab
-        vocab_path = artifacts_dir / "vocab.json"
-        with open(vocab_path, "w", encoding="utf-8") as f:
-            json.dump(word2idx, f, ensure_ascii=False, indent=2)
-        mlflow.log_artifact(str(vocab_path))
->>>>>>> feature/training_and_evaluation
 
         for epoch in range(1, args.epochs + 1):
             model.train()
@@ -322,7 +224,6 @@ def main():
                 dataloader=val_loader,
                 device=device,
                 ce_loss=ce_loss,
-<<<<<<< HEAD
                 max_answer_len=args.max_answer_len,
             )
 
@@ -337,67 +238,35 @@ def main():
                     },
                     step=epoch,
                 )
-=======
-                max_answer_len=args.max_answer_len
-            )
-
-            mlflow.log_metrics({
-                "train_loss": train_loss,
-                "val_loss": val_metrics["val_loss"],
-                "val_em": val_metrics["em"],
-                "val_f1": val_metrics["f1"],
-                "n_eval": val_metrics["n_eval"],
-            }, step=epoch)
->>>>>>> feature/training_and_evaluation
 
             # keep best
-            if val_metrics["f1"] > best_f1:
+            if float(val_metrics["f1"]) > best_f1:
                 best_f1 = float(val_metrics["f1"])
                 torch.save(model.state_dict(), best_weights_path)
 
-<<<<<<< HEAD
-    # ALWAYS create metrics.json locally (CI + gates)
-    metrics_path = artifacts_dir / "metrics.json"
-    with open(metrics_path, "w", encoding="utf-8") as f:
-        json.dump({"best_val_f1": best_f1, "run_id": run_id}, f, indent=2)
+        # Always create metrics.json locally (for CI quality gates)
+        metrics_path = artifacts_dir / "metrics.json"
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump({"best_val_f1": best_f1, "run_id": run_id}, f, indent=2)
 
-    # MLflow-only: log artifacts/model + registry
-    if use_mlflow:
-        mlflow.log_artifact(str(best_weights_path))
-        mlflow.log_artifact(str(metrics_path))
-=======
-        # log best weights
-        mlflow.log_artifact(str(best_weights_path))
->>>>>>> feature/training_and_evaluation
+        # If MLflow enabled: log artifacts/model + register
+        if use_mlflow:
+            mlflow.log_artifact(str(best_weights_path))
+            mlflow.log_artifact(str(metrics_path))
 
-        # log full model
-        mlflow.pytorch.log_model(model, artifact_path="model")
+            # Log full model
+            mlflow.pytorch.log_model(model, artifact_path="model")
 
-        # register in Model Registry
-<<<<<<< HEAD
-        model_uri = f"runs:/{run_id}/model"
-        registered = mlflow.register_model(model_uri=model_uri, name=args.model_name)
+            # Register in Model Registry
+            model_uri = f"runs:/{run_id}/model"
+            registered = mlflow.register_model(model_uri=model_uri, name=args.model_name)
 
-        print(f"Run ID: {run_id}")
-        print(f"Registered model: {registered.name} v{registered.version}")
+            print(f"Run ID: {run_id}")
+            print(f"Registered model: {registered.name} v{registered.version}")
 
     print(f"Best val F1: {best_f1:.4f}")
     if not use_mlflow:
         print("MLflow disabled (--no_mlflow). Artifacts saved locally under ./artifacts.")
-=======
-        model_uri = f"runs:/{run.info.run_id}/model"
-        registered = mlflow.register_model(model_uri=model_uri, name=args.model_name)
-
-        # metrics for CI gates
-        metrics_path = artifacts_dir / "metrics.json"
-        with open(metrics_path, "w", encoding="utf-8") as f:
-            json.dump({"best_val_f1": best_f1, "run_id": run.info.run_id}, f, indent=2)
-        mlflow.log_artifact(str(metrics_path))
-
-        print(f"Run ID: {run.info.run_id}")
-        print(f"Registered model: {registered.name} v{registered.version}")
-        print(f"Best val F1: {best_f1:.4f}")
->>>>>>> feature/training_and_evaluation
 
 
 if __name__ == "__main__":
