@@ -8,13 +8,14 @@ on:
 
 jobs:
   train-evaluate-promote:
-    # only run when the PR was merged (not just closed)
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
