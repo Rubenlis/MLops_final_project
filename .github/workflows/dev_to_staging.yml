@@ -8,8 +8,8 @@ on:
 
 jobs:
   train-evaluate-promote:
-    # run ONLY when the PR was actually merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # Only run when PR is merged AND comes from dev -> staging
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'staging' && github.event.pull_request.head.ref == 'dev'
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use merge commit when available; fallback to staging head
           ref: ${{ github.event.pull_request.merge_commit_sha || 'staging' }}
 
       - name: Setup Python
@@ -34,9 +33,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
+          # keep DVC "on paper" but do not block
           pip install pytest mlflow dagshub "dvc[http]" scikit-learn
 
-      # --- DVC (DagsHub) ---
+      # --- DVC (DagsHub) OPTIONAL ---
       - name: Configure DVC auth for DagsHub (runtime)
         env:
           DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
@@ -49,31 +49,40 @@ jobs:
               password = ${DAGSHUB_TOKEN}
           EOF
 
-      - name: DVC pull (DagsHub)
+      - name: DVC pull (optional, non-blocking)
+        continue-on-error: true
         run: |
-          # relies on .dvc/config having:
-          # [core] remote = dagshub
-          # ['remote "dagshub"'] url = https://dagshub.com/Rubenlis/MLops_final_project.dvc
+          echo "Trying dvc pull (non-blocking)..."
           dvc pull -v
 
+      - name: Verify mini data files exist (fallback)
+        run: |
+          ls -lah data || true
+          test -f data/train-mini.json
+          test -f data/dev-mini.json
+          echo "✅ mini dataset files found."
+
+      # --- Tests ---
       - name: Run unit tests
         run: |
           python -m pytest -q
 
-      - name: Train on staging subset
+      # --- Training (MLflow enabled) ---
+      - name: Train on mini dataset (staging)
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           MLFLOW_TRACKING_USERNAME: ${{ secrets.MLFLOW_TRACKING_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.MLFLOW_TRACKING_PASSWORD }}
         run: |
           python training/train.py \
-            --train_json data/train-v2.0.json \
-            --val_json data/dev-v2.0.json \
+            --train_json data/train-mini.json \
+            --val_json data/dev-mini.json \
             --epochs 3 \
             --batch_size 16 \
-            --subset_train 20000 \
-            --subset_val 4000
+            --subset_train 8000 \
+            --subset_val 2000
 
+      # --- Quality gate + Promotion + Tags ---
       - name: Quality Gate & Promote model to Staging (with tags)
         env:
           F1_THRESHOLD: "0.10"
@@ -111,14 +120,13 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
-          # Promote latest NONE stage version (newly registered)
           versions = client.get_latest_versions(model_name, stages=["None"])
           if versions:
               mv = versions[0]
           else:
               all_versions = client.search_model_versions(f"name='{model_name}'")
               if not all_versions:
-                  print("No model versions found.")
+                  print("No model versions found. Ensure train.py registers the model.")
                   sys.exit(1)
               mv = max(all_versions, key=lambda v: int(v.version))
 
