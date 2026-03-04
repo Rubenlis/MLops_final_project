@@ -12,9 +12,8 @@ requests
 dvc[gdrive]
 dagshub
 pytest
-<<<<<<< HEAD
+
 fastapi
 uvicorn
 pydantic
-=======
->>>>>>> feature/training_and_evaluation
+
