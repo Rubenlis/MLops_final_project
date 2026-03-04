@@ -1,8 +1,6 @@
 *.egg-info/
 build/
 dist/
-artifacts/
 __pycache__/
 *.pyc
 .env
-mlruns/
