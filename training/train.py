@@ -254,15 +254,14 @@ def main() -> None:
             mlflow.log_artifact(str(best_weights_path))
             mlflow.log_artifact(str(metrics_path))
 
+            print("Artifacts:", [a.path for a in mlflow.tracking.MlflowClient().list_artifacts(run_id)])
             # Log full model
-            mlflow.pytorch.log_model(model, artifact_path="model")
-
-            # Register in Model Registry
-            model_uri = f"runs:/{run_id}/model"
-            registered = mlflow.register_model(model_uri=model_uri, name=args.model_name)
-
-            print(f"Run ID: {run_id}")
-            print(f"Registered model: {registered.name} v{registered.version}")
+            registered = mlflow.pytorch.log_model(
+                model,
+                artifact_path="model",
+                registered_model_name=args.model_name
+            )
+            print(f"Registered model under name: {args.model_name}")
 
     print(f"Best val F1: {best_f1:.4f}")
     if not use_mlflow:
