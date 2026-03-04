@@ -27,7 +27,7 @@ class TestSquadPreprocessor(unittest.TestCase):
             'context': "The capital of France is Paris.",
             'question': "What is the capital of France?",
             'answer_text': "Paris",
-            'answer_start': 24
+            'answer_start': 25
         }]
         
         processed = self.preprocessor.process_raw_data(raw_data)
