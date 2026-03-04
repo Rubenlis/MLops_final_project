@@ -8,15 +8,17 @@ on:
 
 jobs:
   train-evaluate-promote:
+    # run ONLY when the PR was actually merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout merged code (staging after merge)
+      # Checkout the MERGE COMMIT created by GitHub for this PR close/merge event
+      - name: Checkout merged commit
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: staging
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -32,15 +34,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install pytest mlflow dagshub dvc scikit-learn
+          pip install pytest mlflow dagshub "dvc[http]" scikit-learn
 
+      # --- DVC (DagsHub) ---
       - name: DVC pull (DagsHub)
         env:
           DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
+          # Set/override the remote URL with credentials (avoids 401)
           dvc remote modify dagshub url "https://${DAGSHUB_USER}:${DAGSHUB_TOKEN}@dagshub.com/Rubenlis/MLops_final_project.dvc"
-          dvc pull -v
+          # Pull from the dagshub remote explicitly (safer than relying on default)
+          dvc pull -r dagshub -v
 
       - name: Run unit tests
         run: |
@@ -97,6 +102,7 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
+          # Promote latest NONE stage version (newly registered)
           versions = client.get_latest_versions(model_name, stages=["None"])
           if versions:
               mv = versions[0]
