@@ -4,10 +4,12 @@ on:
   pull_request:
     branches:
       - staging
-    types: [closed]
+
 
 jobs:
   train-evaluate-promote:
+  # only run when the PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
@@ -39,24 +41,11 @@ jobs:
           mkdir -p .secrets
           echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}' > .secrets/gdrive-sa.json
 
-      - name: Configure DVC for GDrive (service account)
-        run: |
-          dvc remote modify gdrive gdrive_use_service_account true --local
-          dvc remote modify gdrive gdrive_service_account_json_file_path .secrets/gdrive-sa.json --local
-
-      - name: DVC pull data
-        run: |
-          dvc pull -v
-
-      - name: Verify data files exist
-        run: |
-          echo "Listing repo root:"
-          ls -lah
-          echo "Listing data/:"
-          ls -lah data || true
-          test -f data/train-v2.0.json
-          test -f data/dev-v2.0.json
-          echo "✅ data files found."
+      - name: DVC pull
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: dvc pull -v
 
       # --- Tests ---
       - name: Run unit tests
