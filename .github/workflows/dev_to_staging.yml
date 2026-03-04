@@ -4,20 +4,19 @@ on:
   pull_request:
     branches:
       - staging
-
+    types: [closed]
 
 jobs:
   train-evaluate-promote:
-  # only run when the PR was merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout merged code (staging after merge)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: staging
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -33,26 +32,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
-          pip install pytest mlflow dagshub "dvc[gdrive]" scikit-learn
+          pip install pytest mlflow dagshub dvc scikit-learn
 
-      # --- DVC (Google Drive Service Account) ---
-      - name: Write GDrive service account key
-        run: |
-          mkdir -p .secrets
-          echo '${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}' > .secrets/gdrive-sa.json
-
-      - name: DVC pull
+      - name: DVC pull (DagsHub)
         env:
           DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
-        run: dvc pull -v
+        run: |
+          dvc remote modify dagshub url "https://${DAGSHUB_USER}:${DAGSHUB_TOKEN}@dagshub.com/Rubenlis/MLops_final_project.dvc"
+          dvc pull -v
 
-      # --- Tests ---
       - name: Run unit tests
         run: |
           python -m pytest -q
 
-      # --- Training (MLflow enabled) ---
       - name: Train on staging subset
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
@@ -67,7 +60,6 @@ jobs:
             --subset_train 20000 \
             --subset_val 4000
 
-      # --- Quality gate + Promotion + Tags ---
       - name: Quality Gate & Promote model to Staging (with tags)
         env:
           F1_THRESHOLD: "0.10"
@@ -105,7 +97,6 @@ jobs:
               print(f"Quality Gate failed: {best_f1:.4f} < {threshold:.2f}")
               sys.exit(1)
 
-          # Promote latest NONE stage version (newly registered)
           versions = client.get_latest_versions(model_name, stages=["None"])
           if versions:
               mv = versions[0]
