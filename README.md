@@ -1,6 +1,4 @@
-<<<<<<< HEAD
-# MLops_final_project
-=======
+
 # MLops_final_project
 
 Installer les bibli notées dans requirement.txt  **Python 1.10**
