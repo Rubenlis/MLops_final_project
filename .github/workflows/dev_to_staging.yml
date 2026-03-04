@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the MERGE COMMIT created by GitHub for this PR close/merge event
-      - name: Checkout merged commit
+      - name: Checkout merged code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          # Use merge commit when available; fallback to staging head
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'staging' }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -37,15 +37,24 @@ jobs:
           pip install pytest mlflow dagshub "dvc[http]" scikit-learn
 
       # --- DVC (DagsHub) ---
-      - name: DVC pull (DagsHub)
+      - name: Configure DVC auth for DagsHub (runtime)
         env:
           DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          # Set/override the remote URL with credentials (avoids 401)
-          dvc remote modify dagshub url "https://${DAGSHUB_USER}:${DAGSHUB_TOKEN}@dagshub.com/Rubenlis/MLops_final_project.dvc"
-          # Pull from the dagshub remote explicitly (safer than relying on default)
-          dvc pull -r dagshub -v
+          mkdir -p ~/.config/dvc
+          cat > ~/.config/dvc/config << EOF
+          ['remote "dagshub"']
+              user = ${DAGSHUB_USER}
+              password = ${DAGSHUB_TOKEN}
+          EOF
+
+      - name: DVC pull (DagsHub)
+        run: |
+          # relies on .dvc/config having:
+          # [core] remote = dagshub
+          # ['remote "dagshub"'] url = https://dagshub.com/Rubenlis/MLops_final_project.dvc
+          dvc pull -v
 
       - name: Run unit tests
         run: |
